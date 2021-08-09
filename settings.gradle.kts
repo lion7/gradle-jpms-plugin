@@ -5,4 +5,8 @@ pluginManagement {
     }
 }
 
+plugins {
+    `gradle-enterprise`
+}
+
 rootProject.name = "gradle-jpms-plugin"

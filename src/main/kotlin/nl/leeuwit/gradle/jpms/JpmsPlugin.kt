@@ -44,7 +44,7 @@ class JpmsPlugin : Plugin<Project> {
                     options.compilerArgs = listOf(
                         "--release", "9",
                         "--module-path", compileKotlinJvm.classpath.asPath,
-                        "--patch-module", "$moduleName=${compileKotlinJvm.destinationDir}",
+                        "--patch-module", "$moduleName=${compileKotlinJvm.destinationDirectory.asFile}",
                         "-Xlint:-requires-transitive-automatic"
                     )
                 }
