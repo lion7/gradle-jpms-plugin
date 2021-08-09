@@ -55,7 +55,7 @@ gradlePlugin {
 
 pluginBundle {
     website = "https://github.com/lion7/gradle-jpms-plugin"
-    vcsUrl = "git@github.com:lion7/gradle-jpms-plugin.git"
+    vcsUrl = "https://github.com/lion7/gradle-jpms-plugin"
     tags = listOf("java", "jpms", "jigsaw", "modules", "modularity")
 }
 
