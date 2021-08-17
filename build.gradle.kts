@@ -18,7 +18,7 @@ repositories {
 }
 
 dependencies {
-
+    implementation("org.jetbrains.kotlin:kotlin-gradle-plugin:1.5.20")
 }
 
 buildScan {
@@ -47,7 +47,7 @@ gradlePlugin {
         create("modulesPlugin") {
             id = "nl.leeuwit.gradle.jpms"
             displayName = "JPMS Gradle Plugin"
-            description = "A Gradle plugin that adds useful tasks to support the Java Platform Module System"
+            description = "A Gradle plugin that adds support for the Java Platform Module System"
             implementationClass = "nl.leeuwit.gradle.jpms.JpmsPlugin"
         }
     }

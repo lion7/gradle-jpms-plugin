@@ -1,64 +1,65 @@
 package nl.leeuwit.gradle.jpms
 
+import org.gradle.api.JavaVersion
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.tasks.bundling.Jar
-import org.gradle.api.tasks.compile.AbstractCompile
-import org.gradle.api.tasks.compile.JavaCompile
-import org.gradle.kotlin.dsl.register
+import org.gradle.kotlin.dsl.findByType
+import org.jetbrains.kotlin.gradle.dsl.KotlinMultiplatformExtension
+import org.jetbrains.kotlin.gradle.targets.jvm.KotlinJvmTarget
 import java.util.spi.ToolProvider
 
 class JpmsPlugin : Plugin<Project> {
-    override fun apply(target: Project) = target.afterEvaluate {
-        val jdeps = ToolProvider.findFirst("jdeps")
-        val compileKotlinJvm = tasks.findByName("compileKotlinJvm") as AbstractCompile?
-        val jvmJar = tasks.findByName("jvmJar") as Jar?
+    override fun apply(project: Project) {
+        val multiplatform = project.extensions.findByType<KotlinMultiplatformExtension>() ?: return
+            multiplatform.targets.filterIsInstance<KotlinJvmTarget>().forEach { target ->
+                val mainCompilation = target.compilations.getByName("main")
+                val moduleName = project.findProperty("jpms.modulename")?.toString() ?: mainCompilation.moduleName.replace('-', '.')
+                val inputClasspath = mainCompilation.compileKotlinTask.classpath
+                val outputClassesDir = mainCompilation.compileKotlinTask.destinationDirectory.asFile.get()
+                val outputJarTask = project.tasks.getByName(target.artifactsTaskName) as Jar
 
-        if (jdeps.isPresent && compileKotlinJvm != null && jvmJar != null) {
-            val modularityDir = buildDir.resolve("modularity")
-            val generatedDir = modularityDir.resolve("generated")
-            val classesDir = modularityDir.resolve("classes")
-            val jvmGenerateModuleInfo = tasks.register("jvmGenerateModuleInfo", Jar::class) {
-                dependsOn(compileKotlinJvm)
-                destinationDirectory.set(modularityDir)
-                from(jvmJar.source)
-                exclude { it.file.startsWith(classesDir) }
-                doLast {
-                    generatedDir.deleteRecursively()
-                    jdeps.get().run(
-                        System.out, System.err,
-                        "--multi-release", "9",
-                        "--generate-module-info", generatedDir.toString(),
-                        "--module-path", compileKotlinJvm.classpath.asPath,
-                        archiveFile.get().toString()
-                    )
+                val java9SourceSet = multiplatform.sourceSets.create("${target.targetName}Java9")
+                val java9Compilation = target.compilations.create("java9") {
+                    compileJavaTaskProvider!!.configure {
+                        dependsOn(mainCompilation.compileAllTaskName)
+                        source(java9SourceSet.kotlin)
+                        sourceCompatibility = JavaVersion.VERSION_1_9.toString()
+                        targetCompatibility = JavaVersion.VERSION_1_9.toString()
+                        doFirst {
+                            classpath = project.files()
+                            options.compilerArgs = listOf(
+                                "--release", "9",
+                                "--module-path", inputClasspath.asPath,
+                                "--patch-module", "$moduleName=$outputClassesDir",
+                                "-Xlint:-requires-transitive-automatic"
+                            )
+                        }
+                    }
+                }
+
+                outputJarTask.apply {
+                    from(java9Compilation.output.classesDirs) {
+                        into("META-INF/versions/9")
+                    }
+                    manifest {
+                        attributes(mapOf("Multi-Release" to true))
+                    }
+                }
+
+                project.tasks.register("${target.targetName}CheckModuleInfo") {
+                    dependsOn(outputJarTask)
+                    doLast {
+                        val jdeps = ToolProvider.findFirst("jdeps").orElseThrow { IllegalStateException("Tool 'jdeps' is not available") }
+                        jdeps.run(
+                            System.out, System.err,
+                            "--multi-release", "9",
+                            "--module-path", (inputClasspath + project.files(outputJarTask)).asPath,
+                            "--check", moduleName
+                        )
+                    }
                 }
             }
-            val jvmCompileModuleInfo = tasks.register("jvmCompileModuleInfo", JavaCompile::class) {
-                dependsOn(jvmGenerateModuleInfo)
-                destinationDirectory.set(classesDir)
-                source(generatedDir)
-                classpath = files()
-                doFirst {
-                    val moduleName = generatedDir.listFiles()!!.first().name
-                    options.compilerArgs = listOf(
-                        "--release", "9",
-                        "--module-path", compileKotlinJvm.classpath.asPath,
-                        "--patch-module", "$moduleName=${compileKotlinJvm.destinationDirectory.asFile}",
-                        "-Xlint:-requires-transitive-automatic"
-                    )
-                }
-            }
-            jvmJar.apply {
-                dependsOn(jvmCompileModuleInfo)
-                from(classesDir) {
-                    into("META-INF/versions/9")
-                }
-                manifest {
-                    attributes(jvmJar.manifest.attributes + mapOf("Multi-Release" to true))
-                }
-            }
-        }
     }
 
 }
