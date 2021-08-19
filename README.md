@@ -10,6 +10,11 @@ The plugin is published in the [Gradle plugin repository](https://plugins.gradle
 It makes building modules seamless from the Gradle perspective. 
 It automatically generates a `module-info.java` for your main JAR, compiles it and adds it to the JAR at the appropriate place.
 
+Usage
+===
+
+To use this plugin, follow the instructions at https://plugins.gradle.org/plugin/nl.leeuwit.gradle.jpms
+
 Limitations
 ===
 
